@@ -1,3 +1,22 @@
+/* =========================
+   RESET BÁSICO
+========================= */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* =========================
+   HOST ANGULAR
+========================= */
 :host {
   display: block;
   height: 100vh;
@@ -5,19 +24,20 @@
   overflow: hidden;
 }
 
+/* =========================
+   CONTENEDOR PRINCIPAL
+========================= */
 .map-container {
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   display: grid;
   grid-template-rows: auto 1fr;
-  grid-template-columns: 1fr 300px;
-  grid-template-areas:
-    "header header"
-    "map sidebar";
 }
 
+/* =========================
+   HEADER
+========================= */
 .header {
-  grid-area: header;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   padding: 1rem 2rem;
@@ -33,53 +53,49 @@
 
   .user-info {
     display: flex;
-    gap: 1rem;
     align-items: center;
+    gap: 1rem;
 
     .btn-logout {
-      background: rgba(255,255,255,0.2);
+      background: rgba(255, 255, 255, 0.2);
       color: white;
-      border: 1px solid rgba(255,255,255,0.3);
+      border: 1px solid rgba(255, 255, 255, 0.3);
       padding: 0.5rem 1rem;
       border-radius: 6px;
       cursor: pointer;
 
       &:hover {
-        background: rgba(255,255,255,0.3);
+        background: rgba(255, 255, 255, 0.3);
       }
     }
   }
 }
 
-.map-wrapper {
-  grid-area: map;
-  position: relative;
+/* =========================
+   GRID MAPA + SIDEBAR
+========================= */
+.content {
+  display: grid;
+  grid-template-columns: 320px 1fr; /* sidebar | mapa */
+  grid-template-areas: "sidebar map";
   height: 100%;
-  width: 100%;
-  
-  #map {
-    position: relative;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 100% !important;
-    width: 100% !important;
-    z-index: 1;
-  }
+  min-height: 0;
 }
 
+/* =========================
+   SIDEBAR
+========================= */
 .sidebar {
   grid-area: sidebar;
-  background: #fff;
-  border-left: 1px solid #e0e0e0;
-  overflow-y: auto;
+  background: #ffffff;
+  border-right: 1px solid #e0e0e0;
   padding: 1rem;
+  overflow-y: auto;
 
   h3 {
     color: #667eea;
     font-size: 1rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
     padding-bottom: 0.5rem;
     border-bottom: 2px solid #f0f0f0;
   }
@@ -91,18 +107,22 @@
   .no-cities {
     color: #999;
     font-style: italic;
-    padding: 1rem;
     text-align: center;
+    padding: 1rem;
   }
 
   .cities-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
     .city-item {
-      padding: 0.5rem;
       background: #f8f9fa;
       border-radius: 6px;
-      margin-bottom: 0.5rem;
+      padding: 0.6rem 0.75rem;
       display: flex;
       justify-content: space-between;
+      align-items: center;
 
       strong {
         color: #333;
@@ -112,5 +132,53 @@
         color: #666;
       }
     }
+  }
+}
+
+/* =========================
+   MAPA
+========================= */
+.map-wrapper {
+  grid-area: map;
+  position: relative;
+  height: 100%;
+  width: 100%;
+  min-height: 0; /* FIX CRÍTICO */
+  min-width: 0;
+}
+
+#map {
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
+
+/* =========================
+   FIXES LEAFLET
+========================= */
+.leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.leaflet-control {
+  z-index: 500;
+}
+
+/* =========================
+   RESPONSIVE MOBILE
+========================= */
+@media (max-width: 900px) {
+  .content {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "map"
+      "sidebar";
+  }
+
+  .sidebar {
+    height: 40vh;
+    border-right: none;
+    border-top: 1px solid #e0e0e0;
   }
 }
