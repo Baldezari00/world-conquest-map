@@ -16,13 +16,16 @@ import * as L from 'leaflet';
 export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
   username: string = '';
   userId: string = '';
-  map: any;
+  map!: L.Map;
   cities: City[] = [];
   activeSeason: Season | null = null;
+  selectedCity: City | null = null;
   userCities: City[] = [];
   
+  // Stats
   totalCities: number = 0;
   totalInhabitants: number = 0;
+  mapInitialized = false;
 
   constructor(
     private supabase: SupabaseService,
@@ -45,17 +48,19 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit() {
-    // Esperar a que el DOM esté completamente renderizado
+    // Esperar que el DOM esté listo
     setTimeout(() => {
-      this.initMap();
-      this.loadCities();
-    }, 100);
+      const mapElement = document.getElementById('map');
+      if (mapElement && !this.mapInitialized) {
+        this.initMap();
+        this.loadCities();
+      }
+    }, 300);
   }
 
   ngOnDestroy() {
     if (this.map) {
       this.map.remove();
-      this.map = null;
     }
   }
 
@@ -67,7 +72,7 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
       .single();
 
     if (data) {
-      this.username = data.username || 'Conquistador';
+      this.username = data.username || data.display_name || 'Conquistador';
       this.totalCities = data.total_cities || 0;
       this.totalInhabitants = data.total_inhabitants || 0;
     }
@@ -83,94 +88,173 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async loadCities() {
-    this.cityService.getCities().subscribe(cities => {
-      this.cities = cities;
-      if (this.map) {
-        this.addCitiesToMap();
+    this.cityService.getCities().subscribe({
+      next: (cities) => {
+        console.log('Ciudades cargadas:', cities);
+        this.cities = cities;
+        if (this.map && cities.length > 0) {
+          this.addCitiesToMap();
+        }
+      },
+      error: (error) => {
+        console.error('Error cargando ciudades:', error);
       }
     });
   }
 
   async loadUserCities() {
     if (!this.activeSeason) return;
+    
     this.cityService.getUserCities(this.userId, this.activeSeason.id).subscribe(cities => {
       this.userCities = cities;
     });
   }
 
   initMap() {
-    const mapElement = document.getElementById('map');
-    if (!mapElement) {
-      console.error('Map element not found');
-      return;
+    if (this.mapInitialized) return;
+
+    try {
+      // Configuración del mapa con límites
+      this.map = L.map('map', {
+        center: [20, 0],
+        zoom: 2,
+        minZoom: 2,
+        maxZoom: 6,
+        maxBounds: [[-90, -180], [90, 180]], // Límites del mundo
+        maxBoundsViscosity: 1.0, // Evita que se salga del mundo
+        worldCopyJump: false, // No repetir el mapa
+        zoomControl: true,
+        scrollWheelZoom: true,
+        doubleClickZoom: true,
+        dragging: true
+      });
+
+      // Tile layer optimizado
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 18,
+        noWrap: true, // No repetir el mapa horizontalmente
+        bounds: [[-90, -180], [90, 180]]
+      }).addTo(this.map);
+
+      this.mapInitialized = true;
+      console.log('Mapa inicializado correctamente');
+
+      // Forzar que el mapa se redibuje
+      setTimeout(() => {
+        this.map.invalidateSize();
+      }, 100);
+
+    } catch (error) {
+      console.error('Error inicializando mapa:', error);
     }
-
-    // Crear mapa
-    this.map = L.map('map', {
-      center: [20, 0],
-      zoom: 2,
-      zoomControl: true,
-      attributionControl: true
-    });
-
-    // Agregar capa de tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 18,
-      minZoom: 2
-    }).addTo(this.map);
-
-    // CRÍTICO: Forzar recalculo del tamaño después de agregar tiles
-    setTimeout(() => {
-      if (this.map) {
-        this.map.invalidateSize(true);
-        console.log('Mapa invalidado y redimensionado');
-      }
-    }, 250);
-
-    console.log('Mapa inicializado');
   }
 
   addCitiesToMap() {
-    if (!this.map) return;
+    if (!this.map || !this.mapInitialized) {
+      console.log('Mapa no está listo aún');
+      return;
+    }
+
+    console.log('Agregando ciudades al mapa:', this.cities.length);
 
     this.cities.forEach(city => {
       const isOwned = city.ownership && city.ownership.length > 0;
       const isOwnedByUser = isOwned && city.ownership ? city.ownership[0].owner_id === this.userId : false;
 
-      let color = '#3388ff';
-      if (isOwnedByUser) color = '#22c55e';
-      else if (isOwned) color = '#ef4444';
+      let markerColor = '#3388ff'; // Azul (disponible)
+      if (isOwnedByUser) {
+        markerColor = '#22c55e'; // Verde (tuya)
+      } else if (isOwned) {
+        markerColor = '#ef4444'; // Rojo (de otro)
+      }
 
-      const marker = L.circleMarker([city.latitude, city.longitude], {
-        radius: 8,
-        fillColor: color,
-        color: '#fff',
+      // Crear marcador simple
+      const circleMarker = L.circleMarker([city.latitude, city.longitude], {
+        radius: this.getMarkerSize(city.rarity),
+        fillColor: markerColor,
+        color: '#ffffff',
         weight: 2,
+        opacity: 1,
         fillOpacity: 0.8
       }).addTo(this.map);
 
-      marker.bindPopup(this.createPopupContent(city, !isOwned, isOwnedByUser));
+      // Popup
+      const popupContent = this.createPopupContent(city, isOwned || false, isOwnedByUser);
+      circleMarker.bindPopup(popupContent, {
+        maxWidth: 300,
+        className: 'custom-popup'
+      });
+
+      // Evento de click
+      circleMarker.on('click', () => {
+        this.selectedCity = city;
+        console.log('Ciudad seleccionada:', city);
+      });
     });
 
-    console.log(`${this.cities.length} ciudades agregadas al mapa`);
+    console.log('Ciudades agregadas al mapa');
+  }
+
+  getMarkerSize(rarity: string): number {
+    switch(rarity) {
+      case 'legendary': return 12;
+      case 'epic': return 10;
+      case 'rare': return 8;
+      default: return 6;
+    }
   }
 
   createPopupContent(city: City, isOwned: boolean, isOwnedByUser: boolean): string {
-    let content = `<div style="min-width: 180px;"><h4 style="margin: 0 0 8px 0;">${city.name}</h4>`;
-    content += `<p style="margin: 4px 0; font-size: 0.9rem;">💰 Precio: $${city.base_price}</p>`;
-    
-    if (!isOwned) {
-      content += `<button style="width: 100%; padding: 8px; margin-top: 8px; background: #22c55e; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;" onclick="window.purchaseCity('${city.id}')">Comprar Ciudad</button>`;
-    } else if (city.ownership && city.ownership[0]) {
-      content += `<p style="margin: 4px 0; font-size: 0.9rem;">👤 Dueño: ${city.ownership[0].owner?.username || 'Desconocido'}</p>`;
+    const rarityEmoji: Record<string, string> = {
+      'common': '⚪',
+      'rare': '🔵',
+      'epic': '🟣',
+      'legendary': '🟡'
+    };
+
+    const typeEmoji: Record<string, string> = {
+      'capital': '👑',
+      'port': '⚓',
+      'island': '🏝️',
+      'normal': '🏙️'
+    };
+
+    let content = `
+      <div class="city-popup">
+        <h3>${city.name} ${typeEmoji[city.city_type]}</h3>
+        <p><strong>País:</strong> ${city.country?.name || 'Desconocido'}</p>
+        <p><strong>Rareza:</strong> ${rarityEmoji[city.rarity]} ${city.rarity.toUpperCase()}</p>
+        <p><strong>Población:</strong> ${city.real_population.toLocaleString()}</p>
+    `;
+
+    if (isOwned && city.ownership && city.ownership.length > 0) {
+      const ownership = city.ownership[0];
+      content += `
+        <hr style="margin: 10px 0;">
+        <p><strong>Dueño:</strong> ${ownership.owner?.username || 'Desconocido'}</p>
+        <p><strong>Habitantes Virtuales:</strong> ${ownership.virtual_inhabitants.toLocaleString()}</p>
+        <p><strong>Nivel:</strong> ${ownership.city_level}</p>
+      `;
+      
       if (!isOwnedByUser) {
-        content += `<button style="width: 100%; padding: 8px; margin-top: 8px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;" onclick="window.attackCity('${city.id}')">⚔️ Invadir</button>`;
+        content += `<button class="btn-attack" onclick="window.attackCity('${city.id}')">⚔️ Invadir</button>`;
       }
+    } else {
+      content += `
+        <hr style="margin: 10px 0;">
+        <p><strong>Precio:</strong> $${city.base_price.toFixed(2)} USD</p>
+        <button class="btn-buy" onclick="window.purchaseCity('${city.id}')">💰 Comprar</button>
+      `;
     }
-    
+
     content += `</div>`;
     return content;
+  }
+
+  async logout() {
+    await this.supabase.signOut();
+    this.router.navigate(['/login']);
   }
 
   setupGlobalFunctions() {
@@ -179,7 +263,7 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
     };
 
     (window as any).attackCity = (cityId: string) => {
-      alert('Sistema de invasión próximamente...');
+      this.attackCity(cityId);
     };
   }
 
@@ -192,31 +276,33 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
     const city = this.cities.find(c => c.id === cityId);
     if (!city) return;
 
-    const confirm = window.confirm(`¿Comprar ${city.name} por $${city.base_price}?`);
-    if (!confirm) return;
+    const confirmPurchase = confirm(`¿Comprar ${city.name} por $${city.base_price}? (Simulación - sin pago real)`);
+    if (!confirmPurchase) return;
 
     try {
       await this.cityService.purchaseCity(cityId, this.activeSeason.id, this.userId);
-      alert('¡Ciudad comprada exitosamente!');
+      alert('¡Ciudad comprada con éxito!');
       
+      // Recargar datos
       await this.loadUserProfile();
       await this.loadUserCities();
       
-      // Limpiar marcadores
-      this.map.eachLayer((layer: any) => {
+      // Limpiar y recargar mapa
+      this.map.eachLayer((layer) => {
         if (layer instanceof L.CircleMarker) {
           this.map.removeLayer(layer);
         }
       });
       
       await this.loadCities();
+      
     } catch (error: any) {
+      console.error('Error comprando ciudad:', error);
       alert('Error: ' + error.message);
     }
   }
 
-  async logout() {
-    await this.supabase.signOut();
-    this.router.navigate(['/login']);
+  async attackCity(cityId: string) {
+    alert('Sistema de invasión en desarrollo...');
   }
 }
