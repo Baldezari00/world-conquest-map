@@ -1,0 +1,86 @@
+<div class="register-container">
+  <div class="register-card">
+    <h1>🌍 World Conquest</h1>
+    <h2>Crear Cuenta</h2>
+
+    @if (success) {
+      <div class="alert alert-success">
+        ¡Cuenta creada! Redirigiendo al login...
+      </div>
+    }
+
+    @if (!success) {
+      <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
+        <div class="form-group">
+          <label for="username">Nombre de usuario</label>
+          <input
+            id="username"
+            type="text"
+            formControlName="username"
+            placeholder="TuNombre"
+            [class.error]="registerForm.get('username')?.invalid && registerForm.get('username')?.touched"
+          />
+          @if (registerForm.get('username')?.invalid && registerForm.get('username')?.touched) {
+            <small class="error-message">Mínimo 3 caracteres</small>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            formControlName="email"
+            placeholder="tu@email.com"
+            [class.error]="registerForm.get('email')?.invalid && registerForm.get('email')?.touched"
+          />
+          @if (registerForm.get('email')?.invalid && registerForm.get('email')?.touched) {
+            <small class="error-message">Email inválido</small>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="password">Contraseña</label>
+          <input
+            id="password"
+            type="password"
+            formControlName="password"
+            placeholder="••••••••"
+            [class.error]="registerForm.get('password')?.invalid && registerForm.get('password')?.touched"
+          />
+          @if (registerForm.get('password')?.invalid && registerForm.get('password')?.touched) {
+            <small class="error-message">Mínimo 6 caracteres</small>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="confirmPassword">Confirmar Contraseña</label>
+          <input
+            id="confirmPassword"
+            type="password"
+            formControlName="confirmPassword"
+            placeholder="••••••••"
+            [class.error]="registerForm.get('confirmPassword')?.invalid && registerForm.get('confirmPassword')?.touched"
+          />
+          @if (registerForm.errors?.['mismatch'] && registerForm.get('confirmPassword')?.touched) {
+            <small class="error-message">Las contraseñas no coinciden</small>
+          }
+        </div>
+
+        @if (error) {
+          <div class="alert alert-error">
+            {{ error }}
+          </div>
+        }
+
+        <button type="submit" [disabled]="loading || registerForm.invalid" class="btn-primary">
+          {{ loading ? 'Creando cuenta...' : 'Registrarse' }}
+        </button>
+      </form>
+
+      <p class="login-link">
+        ¿Ya tienes cuenta? <a routerLink="/login">Inicia sesión aquí</a>
+      </p>
+    }
+  </div>
+</div>

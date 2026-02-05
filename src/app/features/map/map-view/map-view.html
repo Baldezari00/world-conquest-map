@@ -1,0 +1,33 @@
+<div class="map-container">
+  <header class="header">
+    <h1>🌍 World Conquest</h1>
+    <div class="user-info">
+      <span>{{ username }} | 🏙️ {{ totalCities }} | 👥 {{ totalInhabitants }}</span>
+      <button (click)="logout()" class="btn-logout">Salir</button>
+    </div>
+  </header>
+
+  <div class="content">
+    <main class="map-wrapper">
+      <div id="map"></div>
+    </main>
+    
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h3>Tus Ciudades</h3>
+        @if (userCities.length > 0) {
+          <div class="cities-list">
+            @for (city of userCities; track city.id) {
+              <div class="city-item">
+                <strong>{{ city.name }}</strong>
+                <small>{{ city.ownership?.[0]?.virtual_inhabitants?.toLocaleString() }}</small>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="no-cities">Sin ciudades aún</p>
+        }
+      </div>
+    </aside>
+  </div>
+</div>

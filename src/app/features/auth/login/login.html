@@ -1,0 +1,50 @@
+<div class="login-container">
+  <div class="login-card">
+    <h1>🌍 World Conquest</h1>
+    <h2>Iniciar Sesión</h2>
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          formControlName="email"
+          placeholder="tu@email.com"
+          [class.error]="loginForm.get('email')?.invalid && loginForm.get('email')?.touched"
+        />
+        @if (loginForm.get('email')?.invalid && loginForm.get('email')?.touched) {
+          <small class="error-message">Email inválido</small>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="password">Contraseña</label>
+        <input
+          id="password"
+          type="password"
+          formControlName="password"
+          placeholder="••••••••"
+          [class.error]="loginForm.get('password')?.invalid && loginForm.get('password')?.touched"
+        />
+        @if (loginForm.get('password')?.invalid && loginForm.get('password')?.touched) {
+          <small class="error-message">Mínimo 6 caracteres</small>
+        }
+      </div>
+
+      @if (error) {
+        <div class="alert alert-error">
+          {{ error }}
+        </div>
+      }
+
+      <button type="submit" [disabled]="loading || loginForm.invalid" class="btn-primary">
+        {{ loading ? 'Iniciando...' : 'Iniciar Sesión' }}
+      </button>
+    </form>
+
+    <p class="register-link">
+      ¿No tienes cuenta? <a routerLink="/register">Regístrate aquí</a>
+    </p>
+  </div>
+</div>
