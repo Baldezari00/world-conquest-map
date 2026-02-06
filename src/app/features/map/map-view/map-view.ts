@@ -1,21 +1,45 @@
 import { Component, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { trigger, transition, style, animate } from '@angular/animations';
 import { SupabaseService } from '../../../core/services/supabase.service';
 import { CityService, City } from '../../../core/services/city.service';
 import { SeasonService, Season } from '../../../core/services/season.service';
 import { InvasionService } from '../../../core/services/invasion.service';
-import { InvasionResolverService } from '../../../core/services/invasion-resolver.service'; // NUEVO
+import { InvasionResolverService } from '../../../core/services/invasion-resolver.service';
 import { EventsFeedComponent } from '../../../shared/components/events-feed/events-feed';
 
 import * as L from 'leaflet';
+
+// Interface para notificaciones
+interface Notification {
+  id: string;
+  type: 'success' | 'danger' | 'warning' | 'info';
+  title: string;
+  message: string;
+  details?: string;
+  timestamp: Date;
+}
 
 @Component({
   selector: 'app-map-view',
   standalone: true,
   imports: [CommonModule, EventsFeedComponent],
   templateUrl: './map-view.html',
-  styleUrls: ['./map-view.scss']
+  styleUrls: ['./map-view.scss'],
+  animations: [
+    trigger('slideIn', [
+      transition(':enter', [
+        style({ transform: 'translateX(400px)', opacity: 0 }),
+        animate('400ms cubic-bezier(0.68, -0.55, 0.265, 1.55)', 
+          style({ transform: 'translateX(0)', opacity: 1 }))
+      ]),
+      transition(':leave', [
+        animate('300ms ease-out', 
+          style({ transform: 'translateX(400px)', opacity: 0 }))
+      ])
+    ])
+  ]
 })
 export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
   username: string = '';
@@ -29,12 +53,22 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
   totalInhabitants: number = 0;
   conqueredCountries: number = 0;
 
+  // Auto-refresh del mapa
+  private refreshInterval: any;
+  private cityMarkers: Map<string, L.CircleMarker> = new Map();
+
+  // Sistema de notificaciones
+  notifications: Notification[] = [];
+  private notificationIdCounter = 0;
+  private invasionCheckInterval: any;
+  private processedInvasionIds = new Set<string>();
+
   constructor(
     private supabase: SupabaseService,
     private cityService: CityService,
     private seasonService: SeasonService,
     private invasionService: InvasionService,
-    private invasionResolver: InvasionResolverService, // NUEVO
+    private invasionResolver: InvasionResolverService,
     private router: Router
   ) {}
 
@@ -50,9 +84,12 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
     await this.loadActiveSeason();
     this.setupGlobalFunctions();
 
-    // INICIAR AUTO-RESOLVER DE INVASIONES
+    // Iniciar sistemas
     this.invasionResolver.startAutoResolver();
     console.log('🎲 Sistema de auto-resolución de invasiones activado');
+
+    this.startAutoRefresh();
+    this.startInvasionMonitoring();
   }
 
   ngAfterViewInit() {
@@ -68,9 +105,250 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
       this.map = null;
     }
 
-    // DETENER AUTO-RESOLVER AL SALIR
     this.invasionResolver.stopAutoResolver();
+    
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      console.log('🛑 Auto-refresh detenido');
+    }
+
+    if (this.invasionCheckInterval) {
+      clearInterval(this.invasionCheckInterval);
+      console.log('🛑 Monitoreo de invasiones detenido');
+    }
   }
+
+  // ============================================
+  // SISTEMA DE NOTIFICACIONES
+  // ============================================
+
+  private showNotification(
+    type: 'success' | 'danger' | 'warning' | 'info',
+    title: string,
+    message: string,
+    details?: string,
+    duration: number = 8000
+  ): void {
+    const notification: Notification = {
+      id: `notif-${this.notificationIdCounter++}-${Date.now()}`,
+      type,
+      title,
+      message,
+      details,
+      timestamp: new Date()
+    };
+
+    this.notifications.push(notification);
+
+    // Auto-dismiss
+    setTimeout(() => {
+      this.dismissNotification(notification.id);
+    }, duration);
+
+    console.log('📢 Notificación:', notification);
+  }
+
+  dismissNotification(id: string): void {
+    this.notifications = this.notifications.filter(n => n.id !== id);
+  }
+
+  clearAllNotifications(): void {
+    this.notifications = [];
+  }
+
+  // ============================================
+  // MONITOREO DE INVASIONES
+  // ============================================
+
+  private startInvasionMonitoring(): void {
+    this.invasionCheckInterval = setInterval(async () => {
+      if (!this.activeSeason) return;
+
+      try {
+        const { data: invasions, error } = await this.supabase.client
+          .from('invasions')
+          .select(`
+            *,
+            city:cities(name),
+            attacker:profiles!invasions_attacker_id_fkey(username),
+            defender:profiles!invasions_defender_id_fkey(username)
+          `)
+          .eq('season_id', this.activeSeason.id)
+          .or(`attacker_id.eq.${this.userId},defender_id.eq.${this.userId}`)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+
+        invasions?.forEach(invasion => {
+          this.processInvasionNotification(invasion);
+        });
+
+      } catch (error) {
+        console.error('Error monitoreando invasiones:', error);
+      }
+    }, 3000); // Cada 3 segundos
+
+    console.log('👁️ Monitoreo de invasiones iniciado');
+  }
+
+  private processInvasionNotification(invasion: any): void {
+    const invasionKey = `${invasion.id}-${invasion.status}`;
+    
+    // Evitar notificaciones duplicadas
+    if (this.processedInvasionIds.has(invasionKey)) return;
+    this.processedInvasionIds.add(invasionKey);
+
+    const isAttacker = invasion.attacker_id === this.userId;
+    const isDefender = invasion.defender_id === this.userId;
+
+    // Solo notificar si la invasión es reciente (últimos 10 segundos)
+    const createdAt = new Date(invasion.created_at || invasion.resolved_at);
+    const now = new Date();
+    const diffSeconds = (now.getTime() - createdAt.getTime()) / 1000;
+    
+    if (diffSeconds > 10) return; // Ignorar invasiones viejas
+
+    // Invasión iniciada (solo defensor)
+    if (invasion.status === 'pending' && isDefender) {
+      const timeRemaining = this.getTimeRemaining(invasion.ends_at);
+      
+      this.showNotification(
+        'danger',
+        '⚔️ ¡ESTÁS BAJO ATAQUE!',
+        `${invasion.attacker.username} está invadiendo ${invasion.city.name}`,
+        `Probabilidad: ${invasion.conquest_index.toFixed(1)}% • Termina en ${timeRemaining}`,
+        10000
+      );
+    }
+
+    // Atacante ganó
+    if (invasion.status === 'won_attacker') {
+      if (isAttacker) {
+        this.showNotification(
+          'success',
+          '🎉 ¡VICTORIA!',
+          `Has conquistado ${invasion.city.name}`,
+          `+20% bonus de habitantes • Escudo de 48h activado`,
+          12000
+        );
+      } else if (isDefender) {
+        this.showNotification(
+          'danger',
+          '💔 Ciudad Perdida',
+          `${invasion.attacker.username} conquistó ${invasion.city.name}`,
+          `Has perdido la ciudad y sus habitantes`,
+          12000
+        );
+      }
+    }
+
+    // Defensor ganó
+    if (invasion.status === 'won_defender') {
+      if (isDefender) {
+        this.showNotification(
+          'success',
+          '🛡️ ¡DEFENSA EXITOSA!',
+          `Has defendido ${invasion.city.name} con éxito`,
+          `${invasion.attacker.username} fue repelido`,
+          12000
+        );
+      } else if (isAttacker) {
+        this.showNotification(
+          'warning',
+          '😔 Invasión Fallida',
+          `No pudiste conquistar ${invasion.city.name}`,
+          `Perdiste 10% de tus habitantes totales`,
+          12000
+        );
+      }
+    }
+  }
+
+  private getTimeRemaining(endsAt: string): string {
+    const now = new Date();
+    const end = new Date(endsAt);
+    const diffMs = end.getTime() - now.getTime();
+    
+    if (diffMs <= 0) return 'Terminando...';
+    
+    const seconds = Math.floor(diffMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) return `${hours}h ${minutes % 60}m`;
+    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+    return `${seconds}s`;
+  }
+
+  // ============================================
+  // AUTO-REFRESH DEL MAPA
+  // ============================================
+
+  private startAutoRefresh() {
+    this.refreshInterval = setInterval(async () => {
+      console.log('🔄 Auto-refresh: Actualizando datos...');
+      await this.loadUserProfile();
+      await this.loadUserCities();
+      await this.refreshMapData();
+    }, 5000);
+
+    console.log('✅ Auto-refresh iniciado (cada 5 segundos)');
+  }
+
+  private async refreshMapData() {
+    if (!this.map) return;
+
+    try {
+      const { data: updatedCities, error } = await this.supabase.client
+        .from('cities')
+        .select(`
+          *,
+          country:countries(*),
+          ownership:city_ownership(
+            *,
+            owner:profiles(*)
+          )
+        `)
+        .eq('ownership.season_id', this.activeSeason?.id || '');
+
+      if (error) {
+        console.error('Error actualizando datos:', error);
+        return;
+      }
+
+      this.cities = updatedCities as City[];
+      this.updateCityMarkers();
+
+    } catch (error) {
+      console.error('Error en refreshMapData:', error);
+    }
+  }
+
+  private updateCityMarkers() {
+    this.cities.forEach(city => {
+      const hasOwnership = city.ownership && Array.isArray(city.ownership) && city.ownership.length > 0;
+      const isOwned = hasOwnership ? true : false;
+      const isOwnedByUser = hasOwnership && city.ownership![0].owner_id === this.userId ? true : false;
+
+      let color = '#3388ff';
+      if (isOwnedByUser) {
+        color = '#22c55e';
+      } else if (isOwned) {
+        color = '#ef4444';
+      }
+
+      const marker = this.cityMarkers.get(city.id);
+      if (marker) {
+        marker.setStyle({ fillColor: color });
+        marker.setPopupContent(this.createPopupContent(city, isOwned, isOwnedByUser));
+      }
+    });
+  }
+
+  // ============================================
+  // MÉTODOS EXISTENTES (sin cambios significativos)
+  // ============================================
 
   async loadUserProfile() {
     const { data } = await this.supabase.client
@@ -142,18 +420,18 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
   addCitiesToMap() {
     if (!this.map) return;
 
+    this.cityMarkers.clear();
+
     this.cities.forEach(city => {
-      // Verificar ownership correctamente
       const hasOwnership = city.ownership && Array.isArray(city.ownership) && city.ownership.length > 0;
       const isOwned = hasOwnership ? true : false;
       const isOwnedByUser = hasOwnership && city.ownership![0].owner_id === this.userId ? true : false;
 
-
-      let color = '#3388ff'; // Azul - Disponible
+      let color = '#3388ff';
       if (isOwnedByUser) {
-        color = '#22c55e'; // Verde - Tuya
+        color = '#22c55e';
       } else if (isOwned) {
-        color = '#ef4444'; // Rojo - Enemiga
+        color = '#ef4444';
       }
 
       const size = this.getCitySize(city.rarity);
@@ -170,6 +448,8 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
         maxWidth: 300,
         className: 'city-popup-container'
       });
+
+      this.cityMarkers.set(city.id, marker);
     });
 
     console.log(`Total ciudades en mapa: ${this.cities.length}`);
@@ -186,6 +466,7 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   createPopupContent(city: City, isOwned: boolean, isOwnedByUser: boolean): string {
+    // ... código existente del popup (sin cambios) ...
     const rarityEmoji: Record<string, string> = {
       'legendary': '🟡',
       'epic': '🟣',
@@ -354,7 +635,7 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async purchaseCity(cityId: string) {
     if (!this.activeSeason) {
-      alert('⚠️ No hay temporada activa');
+      this.showNotification('warning', '⚠️ No Disponible', 'No hay temporada activa');
       return;
     }
 
@@ -378,21 +659,33 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
     try {
       await this.cityService.purchaseCity(cityId, this.activeSeason.id, this.userId);
       
-      alert(`✅ ¡${city.name} comprada exitosamente!\n\n+${virtualInhabitants.toLocaleString()} habitantes virtuales`);
+      this.showNotification(
+        'success',
+        '🏙️ Ciudad Comprada',
+        `¡${city.name} ahora es tuya!`,
+        `+${virtualInhabitants.toLocaleString()} habitantes virtuales`,
+        10000
+      );
       
       await this.loadUserProfile();
       await this.loadUserCities();
-      this.refreshMap();
+      await this.refreshMapData();
       
     } catch (error: any) {
       console.error('Error comprando ciudad:', error);
-      alert(`❌ Error: ${error.message}`);
+      this.showNotification(
+        'danger',
+        '❌ Error de Compra',
+        error.message || 'No se pudo completar la compra',
+        'Intenta nuevamente',
+        8000
+      );
     }
   }
 
   async attackCity(cityId: string) {
     if (!this.activeSeason) {
-      alert('⚠️ No hay temporada activa');
+      this.showNotification('warning', '⚠️ No Disponible', 'No hay temporada activa');
       return;
     }
 
@@ -403,7 +696,13 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
 
     if (defender.shield_until && new Date(defender.shield_until) > new Date()) {
       const shieldEnds = new Date(defender.shield_until);
-      alert(`🛡️ Esta ciudad tiene escudo activo hasta ${shieldEnds.toLocaleString()}\n\nNo puedes atacarla en este momento.`);
+      this.showNotification(
+        'warning',
+        '🛡️ Ciudad Protegida',
+        'Esta ciudad tiene escudo activo',
+        `Termina: ${shieldEnds.toLocaleString()}`,
+        8000
+      );
       return;
     }
 
@@ -412,7 +711,7 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
     }, 0);
 
     if (attackerPower === 0) {
-      alert('⚠️ Necesitas al menos una ciudad para atacar');
+      this.showNotification('warning', '⚠️ Sin Poder', 'Necesitas al menos una ciudad para atacar');
       return;
     }
 
@@ -454,20 +753,27 @@ export class MapViewComponent implements OnInit, OnDestroy, AfterViewInit {
         defender.owner_id
       );
 
-      alert(`
-⚔️ ¡INVASIÓN INICIADA!
+      const timeRemaining = this.getTimeRemaining(invasion.ends_at);
+      
+      this.showNotification(
+        'warning',
+        '⚔️ Invasión Iniciada',
+        `Atacando ${city.name} de ${defender.owner?.username}`,
+        `Probabilidad: ${conquestIndex.toFixed(1)}% • Duración: ${timeRemaining}`,
+        12000
+      );
 
-La batalla durará 24 segundos (modo testing).
-Termina: ${new Date(invasion.ends_at).toLocaleString()}
-
-El sistema resolverá automáticamente la invasión.
-      `.trim());
-
-      this.refreshMap();
+      await this.refreshMapData();
 
     } catch (error: any) {
       console.error('Error iniciando invasión:', error);
-      alert(`❌ Error: ${error.message}`);
+      this.showNotification(
+        'danger',
+        '❌ Error de Invasión',
+        error.message || 'No se pudo iniciar la invasión',
+        'Verifica que la ciudad no tenga escudo',
+        8000
+      );
     }
   }
 

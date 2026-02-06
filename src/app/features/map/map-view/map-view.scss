@@ -35,6 +35,170 @@ html, body {
 }
 
 /* =========================
+   SISTEMA DE NOTIFICACIONES
+========================= */
+.notifications-container {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.notification {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-left: 4px solid #667eea;
+  pointer-events: all;
+  animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  transition: transform 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    transform: translateX(-4px);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+  }
+
+  .notification-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+    animation: bounce 0.6s ease-in-out;
+  }
+
+  .notification-content {
+    flex: 1;
+    min-width: 0;
+
+    .notification-title {
+      font-weight: 700;
+      font-size: 15px;
+      color: #1f2937;
+      margin-bottom: 4px;
+    }
+
+    .notification-message {
+      font-size: 14px;
+      color: #4b5563;
+      line-height: 1.4;
+    }
+
+    .notification-details {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid #e5e7eb;
+    }
+  }
+
+  .notification-close {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+    flex-shrink: 0;
+
+    &:hover {
+      background: #f3f4f6;
+      color: #374151;
+    }
+  }
+}
+
+/* Variantes de notificaciones */
+.notification-warning {
+  border-left-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+
+  .notification-title {
+    color: #92400e;
+  }
+}
+
+.notification-danger {
+  border-left-color: #ef4444;
+  background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+
+  .notification-title {
+    color: #991b1b;
+  }
+}
+
+.notification-success {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 100%);
+
+  .notification-title {
+    color: #065f46;
+  }
+}
+
+.notification-info {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+
+  .notification-title {
+    color: #1e40af;
+  }
+}
+
+/* Animaciones */
+@keyframes slideInRight {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+/* Responsive notificaciones */
+@media (max-width: 900px) {
+  .notifications-container {
+    left: 10px;
+    right: 10px;
+    top: 70px;
+    max-width: none;
+  }
+
+  .notification {
+    font-size: 13px;
+
+    .notification-icon {
+      font-size: 24px;
+    }
+  }
+}
+
+/* =========================
    HEADER
 ========================= */
 .header {
@@ -84,6 +248,7 @@ html, body {
     background: #dc2626;
   }
 }
+
 .btn-rankings {
   background: #fbbf24;
   color: white;
@@ -97,12 +262,13 @@ html, body {
     background: #f59e0b;
   }
 }
+
 /* =========================
    GRID MAPA + SIDEBAR
 ========================= */
 .content {
   display: grid;
-  grid-template-columns: 320px 1fr; /* sidebar | mapa */
+  grid-template-columns: 320px 1fr;
   grid-template-areas: "sidebar map";
   height: 100%;
   min-height: 0;
@@ -169,7 +335,7 @@ html, body {
   position: relative;
   height: 100%;
   width: 100%;
-  min-height: 0; /* FIX CRÍTICO */
+  min-height: 0;
   min-width: 0;
 }
 

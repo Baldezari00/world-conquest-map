@@ -95,7 +95,21 @@ export class InvasionService {
 
     console.log('📊 Índice de conquista calculado:', conquestIndex.toFixed(1) + '%');
 
-    // 4. Crear invasión
+    // 4. ACTUALIZAR last_attacked_at INMEDIATAMENTE
+    const now = new Date().toISOString();
+    const { error: updateAttackedError } = await this.supabase.client
+      .from('city_ownership')
+      .update({ last_attacked_at: now })
+      .eq('city_id', cityId)
+      .eq('season_id', seasonId);
+
+    if (updateAttackedError) {
+      console.warn('⚠️ No se pudo actualizar last_attacked_at:', updateAttackedError);
+    } else {
+      console.log('✅ last_attacked_at actualizado:', now);
+    }
+
+    // 5. Crear invasión
     const endsAt = new Date();
     endsAt.setSeconds(endsAt.getSeconds() + 24); // 24 segundos para testing
 
@@ -119,7 +133,7 @@ export class InvasionService {
 
     console.log('✅ Invasión creada:', invasion.id);
 
-    // 5. Evento global
+    // 6. Evento global
     await this.supabase.client
       .from('global_events')
       .insert({
@@ -166,23 +180,7 @@ export class InvasionService {
     console.log('🎰 Random generado:', random.toFixed(2));
     console.log('🏆 Ganador:', attackerWins ? 'ATACANTE' : 'DEFENSOR');
 
-    const newStatus = attackerWins ? 'won_attacker' : 'won_defender';
 
-    // Actualizar estado de invasión
-    const { error: updateError } = await this.supabase.client
-      .from('invasions')
-      .update({
-        status: newStatus,
-        resolved_at: new Date().toISOString()
-      })
-      .eq('id', invasionId);
-
-    if (updateError) {
-      console.error('❌ Error actualizando invasión:', updateError);
-      throw updateError;
-    }
-
-    console.log('✅ Estado de invasión actualizado a:', newStatus);
 
     if (attackerWins) {
       console.log('🚀 Atacante ganó - Transfiriendo ciudad...');
@@ -211,7 +209,23 @@ export class InvasionService {
           city_id: invasion.city_id,
           message: `conquistó una ciudad`
         });
+    
+        
+    const newStatus = attackerWins ? 'won_attacker' : 'won_defender';
 
+    // Actualizar estado de invasión
+    const { error: updateError } = await this.supabase.client
+      .from('invasions')
+      .update({
+        status: newStatus,
+        resolved_at: new Date().toISOString()
+      })
+      .eq('id', invasionId);
+
+    if (updateError) {
+      console.error('❌ Error actualizando invasión:', updateError);
+      throw updateError;
+    }
       console.log('✅ Evento global creado');
 
     } else {
@@ -277,7 +291,6 @@ export class InvasionService {
     console.log('🎁 Bonus (20%):', bonus);
     console.log('✨ Nuevos habitantes:', newInhabitants);
 
-    // 2. IMPORTANTE: Verificar usuario actual antes del UPDATE
     const currentUser = this.supabase.getCurrentUser();
     console.log('🔐 Usuario actual en sesión:', currentUser?.id);
 
@@ -285,17 +298,23 @@ export class InvasionService {
       throw new Error('No hay usuario autenticado');
     }
 
-    // 3. Actualizar ownership
-    // NOTA: El problema de RLS puede estar aquí
+    // 2. Actualizar ownership + last_attacked_at
+    const now = new Date().toISOString();
+    const shieldUntil = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    
     console.log('📝 Intentando UPDATE en city_ownership...');
+    console.log('  - Nuevo owner_id:', newOwnerId);
+    console.log('  - Nuevos habitantes:', newInhabitants);
+    console.log('  - Escudo hasta:', shieldUntil);
+    console.log('  - last_attacked_at:', now);
     
     const { data: updateResult, error: updateError } = await this.supabase.client
       .from('city_ownership')
       .update({
         owner_id: newOwnerId,
         virtual_inhabitants: newInhabitants,
-        shield_until: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
-        last_attacked_at: new Date().toISOString()
+        shield_until: shieldUntil,
+        last_attacked_at: now  // ← ESTO SE ESTABA PERDIENDO
       })
       .eq('city_id', cityId)
       .eq('season_id', seasonId)
@@ -308,7 +327,6 @@ export class InvasionService {
       console.error('Detalles:', updateError.details);
       console.error('Hint:', updateError.hint);
       
-      // Si es error 403, es problema de RLS
       if (updateError.message.includes('policy')) {
         console.error('🚨 PROBLEMA DE RLS DETECTADO');
         console.error('La política de seguridad no permite este UPDATE');
@@ -320,7 +338,7 @@ export class InvasionService {
 
     console.log('✅ UPDATE exitoso:', updateResult);
 
-    // 4. Actualizar stats del ganador
+    // 3. Actualizar stats del ganador
     console.log('📊 Actualizando stats del ganador...');
     
     const { error: incrementError } = await this.supabase.client.rpc('increment_user_stats', {
@@ -336,7 +354,7 @@ export class InvasionService {
 
     console.log('✅ Stats del ganador actualizados');
 
-    // 5. Actualizar stats del perdedor
+    // 4. Actualizar stats del perdedor
     console.log('📊 Actualizando stats del perdedor...');
     
     const { error: decrementError } = await this.supabase.client.rpc('decrement_user_stats', {

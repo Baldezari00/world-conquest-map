@@ -1,84 +1,117 @@
 <div class="map-container">
-<header class="header">
-  <h1>🌍 World Conquest Map</h1>
-  <div class="user-info">
-    <span class="stats">
-      <strong>{{ username }}</strong> | 
-      🏙️ {{ totalCities }} ciudades | 
-      👥 {{ totalInhabitants.toLocaleString() }} hab. |
-      🌍 {{ conqueredCountries }} países
-    </span>
-    <button (click)="goToRankings()" class="btn-rankings">🏆 Rankings</button>
-    <button (click)="goToInvasions()" class="btn-invasions">⚔️ Invasiones</button>
-    <button (click)="logout()" class="btn-logout">Cerrar Sesión</button>
+  <!-- SISTEMA DE NOTIFICACIONES -->
+  <div class="notifications-container">
+    @for (notification of notifications; track notification.id) {
+      <div 
+        class="notification"
+        [class.notification-warning]="notification.type === 'warning'"
+        [class.notification-danger]="notification.type === 'danger'"
+        [class.notification-success]="notification.type === 'success'"
+        [class.notification-info]="notification.type === 'info'"
+        [@slideIn]>
+        <div class="notification-icon">
+          @if (notification.type === 'warning') { ⚠️ }
+          @if (notification.type === 'danger') { ⚔️ }
+          @if (notification.type === 'success') { ✅ }
+          @if (notification.type === 'info') { 📢 }
+        </div>
+        <div class="notification-content">
+          <div class="notification-title">{{ notification.title }}</div>
+          <div class="notification-message">{{ notification.message }}</div>
+          @if (notification.details) {
+            <div class="notification-details">{{ notification.details }}</div>
+          }
+        </div>
+        <button 
+          class="notification-close" 
+          (click)="dismissNotification(notification.id)">
+          ✕
+        </button>
+      </div>
+    }
   </div>
-</header>
+
+  <header class="header">
+    <h1>🌍 World Conquest Map</h1>
+    <div class="user-info">
+      <span class="stats">
+        <strong>{{ username }}</strong> | 
+        🏙️ {{ totalCities }} ciudades | 
+        👥 {{ totalInhabitants.toLocaleString() }} hab. |
+        🌍 {{ conqueredCountries }} países
+      </span>
+      <button (click)="goToRankings()" class="btn-rankings">🏆 Rankings</button>
+      <button (click)="goToInvasions()" class="btn-invasions">⚔️ Invasiones</button>
+      <button (click)="logout()" class="btn-logout">Cerrar Sesión</button>
+    </div>
+  </header>
 
   <div class="content">
-   <aside class="sidebar">
-  <!-- Sección de Temporada (igual) -->
-  <div class="sidebar-section">
-    <h3>⏰ Temporada Activa</h3>
-    @if (activeSeason) {
-      <div class="season-info">
-        <p style="font-weight: 600; margin-bottom: 8px;">{{ activeSeason.name }}</p>
-        <p style="font-size: 0.85rem; color: #666; margin-bottom: 8px;">
-          Termina: {{ activeSeason.end_date | date:'short' }}
-        </p>
-        @if (activeSeason.prize_amount) {
-          <div style="background: #fef3c7; padding: 8px; border-radius: 6px; text-align: center; font-weight: 600;">
-            🏆 Premio: ${{ activeSeason.prize_amount }}
+    <aside class="sidebar">
+      <!-- Sección de Temporada -->
+      <div class="sidebar-section">
+        <h3>⏰ Temporada Activa</h3>
+        @if (activeSeason) {
+          <div class="season-info">
+            <p style="font-weight: 600; margin-bottom: 8px;">{{ activeSeason.name }}</p>
+            <p style="font-size: 0.85rem; color: #666; margin-bottom: 8px;">
+              Termina: {{ activeSeason.end_date | date:'short' }}
+            </p>
+            @if (activeSeason.prize_amount) {
+              <div style="background: #fef3c7; padding: 8px; border-radius: 6px; text-align: center; font-weight: 600;">
+                🏆 Premio: ${{ activeSeason.prize_amount }}
+              </div>
+            }
           </div>
+        } @else {
+          <p class="no-cities">No hay temporada activa</p>
         }
       </div>
-    } @else {
-      <p class="no-cities">No hay temporada activa</p>
-    }
-  </div>
 
-  <!-- NUEVA SECCIÓN: Feed de Eventos -->
-  <div class="sidebar-section">
-    @if (activeSeason) {
-      <app-events-feed [seasonId]="activeSeason.id" [limit]="10"></app-events-feed>
-    }
-  </div>
-
-  <!-- Sección de Tus Ciudades (igual) -->
-  <div class="sidebar-section">
-    <h3>🏙️ Tus Ciudades ({{ userCities.length }})</h3>
-    @if (userCities.length > 0) {
-      <div class="cities-list">
-        @for (city of userCities; track city.id) {
-          <div class="city-item">
-            <strong>{{ city.name }}</strong>
-            <small>{{ city.ownership?.[0]?.virtual_inhabitants?.toLocaleString() }}</small>
-          </div>
+      <!-- Feed de Eventos -->
+      <div class="sidebar-section">
+        @if (activeSeason) {
+          <app-events-feed [seasonId]="activeSeason.id" [limit]="10"></app-events-feed>
         }
       </div>
-    } @else {
-      <p class="no-cities">Aún no tienes ciudades. ¡Compra tu primera ciudad en el mapa!</p>
-    }
-  </div>
 
-  <!-- Sección de Leyenda (igual) -->
-  <div class="sidebar-section">
-    <h3>📖 Leyenda del Mapa</h3>
-    <div style="display: flex; flex-direction: column; gap: 8px;">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="display: block; width: 20px; height: 20px; border-radius: 50%; background: #22c55e; border: 2px solid white;"></span>
-        <span style="font-size: 0.9rem;">Tus ciudades</span>
+      <!-- Tus Ciudades -->
+      <div class="sidebar-section">
+        <h3>🏙️ Tus Ciudades ({{ userCities.length }})</h3>
+        @if (userCities.length > 0) {
+          <div class="cities-list">
+            @for (city of userCities; track city.id) {
+              <div class="city-item">
+                <strong>{{ city.name }}</strong>
+                <small>{{ city.ownership?.[0]?.virtual_inhabitants?.toLocaleString() }}</small>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="no-cities">Aún no tienes ciudades. ¡Compra tu primera ciudad en el mapa!</p>
+        }
       </div>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="display: block; width: 20px; height: 20px; border-radius: 50%; background: #ef4444; border: 2px solid white;"></span>
-        <span style="font-size: 0.9rem;">Ciudades ocupadas</span>
+
+      <!-- Leyenda -->
+      <div class="sidebar-section">
+        <h3>📖 Leyenda del Mapa</h3>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: block; width: 20px; height: 20px; border-radius: 50%; background: #22c55e; border: 2px solid white;"></span>
+            <span style="font-size: 0.9rem;">Tus ciudades</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: block; width: 20px; height: 20px; border-radius: 50%; background: #ef4444; border: 2px solid white;"></span>
+            <span style="font-size: 0.9rem;">Ciudades ocupadas</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: block; width: 20px; height: 20px; border-radius: 50%; background: #3388ff; border: 2px solid white;"></span>
+            <span style="font-size: 0.9rem;">Disponibles para comprar</span>
+          </div>
+        </div>
       </div>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="display: block; width: 20px; height: 20px; border-radius: 50%; background: #3388ff; border: 2px solid white;"></span>
-        <span style="font-size: 0.9rem;">Disponibles para comprar</span>
-      </div>
-    </div>
-  </div>
-</aside>
+    </aside>
+
     <main class="map-wrapper">
       <div id="map"></div>
     </main>
