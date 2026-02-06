@@ -1,0 +1,30 @@
+<div class="events-feed">
+  <div class="feed-header">
+    <h3>📢 Actividad Global</h3>
+    <span class="live-badge">🔴 EN VIVO</span>
+  </div>
+
+  @if (loading) {
+    <div class="loading">Cargando eventos...</div>
+  } @else if (events.length === 0) {
+    <div class="empty">
+      <p>No hay eventos recientes</p>
+    </div>
+  } @else {
+    <div class="events-list">
+      @for (event of events; track event.id) {
+        <div 
+          class="event-item"
+          [style.border-left-color]="eventsService.getEventColor(event.event_type)">
+          <div class="event-icon">
+            {{ eventsService.getEventEmoji(event.event_type) }}
+          </div>
+          <div class="event-content">
+            <p class="event-message">{{ getEventMessage(event) }}</p>
+            <span class="event-time">{{ getTimeAgo(event.created_at) }}</span>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

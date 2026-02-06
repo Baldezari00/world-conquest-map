@@ -1,0 +1,88 @@
+<div class="leaderboard-container">
+  <header class="header">
+    <h1>🏆 Rankings Globales</h1>
+    <button (click)="goToMap()" class="btn-back">← Volver al Mapa</button>
+  </header>
+
+  <main class="content">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button 
+        class="tab"
+        [class.active]="selectedTab === 'inhabitants'"
+        (click)="switchTab('inhabitants')">
+        👥 Por Habitantes
+      </button>
+      <button 
+        class="tab"
+        [class.active]="selectedTab === 'cities'"
+        (click)="switchTab('cities')">
+        🏙️ Por Ciudades
+      </button>
+      <button 
+        class="tab"
+        [class.active]="selectedTab === 'countries'"
+        (click)="switchTab('countries')">
+        🌍 Por Países
+      </button>
+    </div>
+
+    <!-- Tu posición -->
+    @if (currentUserId && getCurrentUserRank() > 0) {
+      <div class="user-rank-card">
+        <span class="rank-badge">{{ getRankMedal(getCurrentUserRank()) }}</span>
+        <p>Tu posición en este ranking</p>
+      </div>
+    }
+
+    <!-- Loading -->
+    @if (loading) {
+      <div class="loading">Cargando rankings...</div>
+    }
+
+    <!-- Rankings -->
+    @else {
+      <div class="rankings-list">
+        @for (entry of rankings; track entry.id) {
+          <div 
+            class="ranking-item"
+            [class.current-user]="isCurrentUser(entry.id)"
+            [class.top3]="entry.rank && entry.rank <= 3">
+            
+            <div class="rank-number">
+              {{ getRankMedal(entry.rank || 0) }}
+            </div>
+
+            <div class="user-info">
+              <strong class="username">{{ entry.username }}</strong>
+              @if (isCurrentUser(entry.id)) {
+                <span class="you-badge">TÚ</span>
+              }
+            </div>
+
+            <div class="stats">
+              @if (selectedTab === 'inhabitants') {
+                <div class="stat-value">
+                  <span class="number">{{ entry.total_inhabitants.toLocaleString() }}</span>
+                  <span class="label">habitantes</span>
+                </div>
+              }
+              @if (selectedTab === 'cities') {
+                <div class="stat-value">
+                  <span class="number">{{ entry.total_cities }}</span>
+                  <span class="label">ciudades</span>
+                </div>
+              }
+              @if (selectedTab === 'countries') {
+                <div class="stat-value">
+                  <span class="number">{{ entry.conquered_countries }}</span>
+                  <span class="label">países</span>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </main>
+</div>

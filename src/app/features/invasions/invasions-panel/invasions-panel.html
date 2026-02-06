@@ -1,0 +1,127 @@
+<div class="invasions-container">
+  <!-- Header -->
+  <div class="invasions-header">
+    <h1>⚔️ Panel de Invasiones</h1>
+    <div class="header-actions">
+      <button class="btn-testing" (click)="forceResolveAll()" title="Modo Testing: Resolver todas">
+        ⚡ RESOLVER TODAS (Testing)
+      </button>
+      <button class="btn-back" (click)="goToMap()">
+        🗺️ Volver al Mapa
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading">
+    <p>Cargando invasiones...</p>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!loading && invasions.length === 0" class="empty-state">
+    <p class="empty-icon">🏰</p>
+    <h2>No hay invasiones activas</h2>
+    <p>Cuando ataques o te ataquen, las batallas aparecerán aquí.</p>
+    <button class="btn-primary" (click)="goToMap()">
+      Ir al Mapa
+    </button>
+  </div>
+
+  <!-- Invasiones Activas -->
+  <div *ngIf="!loading && invasions.length > 0" class="invasions-list">
+    <div class="invasions-count">
+      <p>📊 <strong>{{ invasions.length }}</strong> invasión(es) activa(s)</p>
+    </div>
+
+    <div 
+      *ngFor="let invasion of invasions" 
+      class="invasion-card"
+      [class.is-attacker]="isAttacker(invasion)"
+      [class.is-defender]="!isAttacker(invasion)"
+      [class.ready-to-resolve]="isReadyToResolve(invasion.ends_at)">
+      
+      <!-- Ciudad bajo ataque -->
+      <div class="invasion-header">
+        <h3>🏙️ {{ invasion.city?.name || 'Ciudad Desconocida' }}</h3>
+        <span class="invasion-role" [class.role-attacker]="isAttacker(invasion)" [class.role-defender]="!isAttacker(invasion)">
+          {{ isAttacker(invasion) ? '⚔️ ATACANTE' : '🛡️ DEFENSOR' }}
+        </span>
+      </div>
+
+      <!-- Batalla Info -->
+      <div class="battle-info">
+        <div class="battle-side attacker">
+          <p class="side-label">⚔️ Atacante</p>
+          <p class="side-user">{{ invasion.attacker?.username || 'Desconocido' }}</p>
+          <p class="side-power">💪 {{ invasion.attacker_power.toLocaleString() }}</p>
+        </div>
+
+        <div class="battle-vs">
+          <span>VS</span>
+        </div>
+
+        <div class="battle-side defender">
+          <p class="side-label">🛡️ Defensor</p>
+          <p class="side-user">{{ invasion.defender?.username || 'Desconocido' }}</p>
+          <p class="side-power">💪 {{ invasion.defender_power.toLocaleString() }}</p>
+        </div>
+      </div>
+
+      <!-- Índice de Conquista -->
+      <div class="conquest-index">
+        <p class="conquest-label">📈 Índice de Conquista</p>
+        <div class="conquest-bar-container">
+          <div 
+            class="conquest-bar" 
+            [style.width.%]="invasion.conquest_index"
+            [class.high]="invasion.conquest_index >= 70"
+            [class.medium]="invasion.conquest_index >= 40 && invasion.conquest_index < 70"
+            [class.low]="invasion.conquest_index < 40">
+          </div>
+        </div>
+        <p class="conquest-percentage">{{ invasion.conquest_index.toFixed(1) }}%</p>
+      </div>
+
+      <!-- Timer -->
+      <div class="invasion-timer" [class.timer-ready]="isReadyToResolve(invasion.ends_at)">
+        <p class="timer-label">
+          {{ isReadyToResolve(invasion.ends_at) ? '✅ Lista para resolver' : '⏱️ Tiempo restante' }}
+        </p>
+        <p class="timer-value">{{ getTimeRemaining(invasion.ends_at) }}</p>
+      </div>
+
+      <!-- Acciones -->
+      <div class="invasion-actions">
+        <!-- Si eres atacante y aún puedes cancelar -->
+        <button 
+          *ngIf="isAttacker(invasion) && !isReadyToResolve(invasion.ends_at)"
+          class="btn-cancel"
+          (click)="cancelInvasion(invasion.id)">
+          ❌ Cancelar Invasión
+        </button>
+
+        <!-- Botón para resolver manualmente (testing) -->
+        <button 
+          *ngIf="isReadyToResolve(invasion.ends_at)"
+          class="btn-resolve"
+          (click)="resolveInvasion(invasion.id)">
+          🎲 Resolver Ahora (Manual)
+        </button>
+
+        <!-- Mensaje para defensor -->
+        <div *ngIf="!isAttacker(invasion) && !isReadyToResolve(invasion.ends_at)" class="defender-message">
+          <p>🛡️ Estás defendiendo tu ciudad</p>
+          <p class="defender-tip">La invasión se resolverá automáticamente</p>
+        </div>
+      </div>
+
+      <!-- Footer con fechas -->
+      <div class="invasion-footer">
+        <p class="invasion-date">
+          <span>Iniciada: {{ invasion.started_at | date:'short' }}</span>
+          <span>Termina: {{ invasion.ends_at | date:'short' }}</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
